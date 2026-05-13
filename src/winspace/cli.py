@@ -209,15 +209,26 @@ def _gather_path_guards(source: Path) -> tuple[list[Candidate], list[Candidate]]
 # --- click commands ---------------------------------------------------------
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]})
+@click.group(
+    context_settings={"help_option_names": ["-h", "--help"]},
+    invoke_without_command=True,
+)
 @click.version_option(__version__, prog_name="winspace", message="%(prog)s %(version)s")
-def main() -> None:
+@click.pass_context
+def main(ctx: click.Context) -> None:
     """winspace — clean up C: drive by relocating large directories.
 
     Run ``winspace scan`` to discover candidates, then ``winspace move``
     to relocate them while keeping the original paths working through
-    NTFS junctions.
+    NTFS junctions. Run ``winspace`` with no subcommand to launch the
+    graphical interface.
     """
+    if ctx.invoked_subcommand is None:
+        # No subcommand → GUI mode. We defer the import so the CLI doesn't
+        # pay the PySide6 startup cost for `winspace scan` etc.
+        from winspace.gui.app import run_gui
+
+        sys.exit(run_gui())
 
 
 @main.command()
