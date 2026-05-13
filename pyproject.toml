@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winspace"
+version = "0.1.0.dev0"
+description = "Windows C-drive cleanup and relocator using NTFS junctions"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+authors = [{ name = "kazige23" }]
+keywords = ["windows", "disk", "cleanup", "junction", "symlink"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = ["click>=8.1,<9.0"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5,<1.0",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+winspace = "winspace.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kazige23/winspace"
+Repository = "https://github.com/kazige23/winspace"
+Issues = "https://github.com/kazige23/winspace/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# --- ruff -------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "W",    # pycodestyle warnings
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific
+    "SIM",  # simplify
+    "PTH",  # use pathlib
+]
+ignore = [
+    "E501",  # line too long — formatter handles it
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]  # allow `assert False` in tests if needed
+
+# --- mypy -------------------------------------------------------------------
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_unimported = true
+files = ["src/winspace"]
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "windows: tests requiring Windows-specific behavior (junctions, robocopy, registry)",
+    "integration: end-to-end tests covering scan/move/undo roundtrips",
+]
+addopts = ["-q", "--strict-markers"]
+
+[tool.coverage.run]
+source = ["winspace"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
