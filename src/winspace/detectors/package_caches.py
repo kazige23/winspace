@@ -143,6 +143,7 @@ class PackageCachesDetector(Detector):
                     detector_name=self.name,
                     prerequisite_note_zh="迁移前建议先停止后台构建或 IDE",
                     prerequisite_note_en="Pause active builds / IDE before relocating",
+                    deletable=True,
                 )
             )
         return results

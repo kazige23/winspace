@@ -282,3 +282,74 @@ def test_list_json_output(isolated_env: tuple[Path, Path, Path]) -> None:
     [entry] = data["entries"]
     assert entry["status"] == "active"
     assert entry["health"] == "ok"
+
+
+# --- clean ------------------------------------------------------------------
+
+
+def test_clean_rejects_missing_source(
+    isolated_env: tuple[Path, Path, Path],
+) -> None:
+    runner = CliRunner()
+    result = runner.invoke(main, ["clean", "/no/such/path", "--yes"])
+    assert result.exit_code != 0
+
+
+def test_clean_dry_run_does_not_mutate(
+    isolated_env: tuple[Path, Path, Path],
+) -> None:
+    home, _drive_d, manifest = isolated_env
+    target = home / "old-cache"
+    _make_tree(target, {"file.txt": "x"})
+    runner = CliRunner()
+    result = runner.invoke(main, ["clean", str(target), "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "dry-run" in result.output.lower() or "未删除" in result.output
+    assert target.exists()
+    assert not manifest.exists()
+
+
+def test_clean_user_cancels_at_prompt(
+    isolated_env: tuple[Path, Path, Path],
+) -> None:
+    home, _drive_d, _manifest = isolated_env
+    target = home / "old-cache"
+    _make_tree(target, {"file.txt": "x"})
+    runner = CliRunner()
+    result = runner.invoke(main, ["clean", str(target)], input="n\n")
+    assert result.exit_code == 1
+    assert target.exists()
+
+
+def test_clean_yes_deletes_and_records(
+    isolated_env: tuple[Path, Path, Path],
+) -> None:
+    home, _drive_d, manifest = isolated_env
+    target = home / "old-cache"
+    _make_tree(target, {"file.txt": "x", "sub": {"more.txt": "y"}})
+    runner = CliRunner()
+    result = runner.invoke(main, ["clean", str(target), "--yes"])
+    assert result.exit_code == 0, result.output
+    assert not target.exists()
+    assert manifest.exists()
+
+    # The list command now shows it as DELETED.
+    list_result = runner.invoke(main, ["list", "--json"])
+    assert list_result.exit_code == 0
+    data = json.loads(list_result.output)
+    [entry] = data["entries"]
+    assert entry["status"] == "deleted"
+    assert entry["new_path"] == ""
+
+
+def test_list_table_renders_deleted_entry(
+    isolated_env: tuple[Path, Path, Path],
+) -> None:
+    home, _drive_d, _manifest = isolated_env
+    target = home / "old-cache"
+    _make_tree(target, {"file.txt": "x"})
+    runner = CliRunner()
+    runner.invoke(main, ["clean", str(target), "--yes"])
+    list_result = runner.invoke(main, ["list"])
+    assert list_result.exit_code == 0
+    assert "deleted" in list_result.output

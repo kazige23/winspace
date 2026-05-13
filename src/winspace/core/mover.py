@@ -83,6 +83,18 @@ class UndoResult:
     size_bytes: int
 
 
+@dataclass(frozen=True)
+class DeleteResult:
+    """Summary of a successful (or dry-run) delete."""
+
+    entry_id: str
+    deleted_path: Path
+    size_bytes: int
+    file_count: int
+    tree_hash: str
+    dry_run: bool
+
+
 # --- execute_move ----------------------------------------------------------
 
 
@@ -305,6 +317,76 @@ def execute_undo(
         restored_path=original,
         removed_path=relocated,
         size_bytes=entry.size_bytes,
+    )
+
+
+# --- execute_delete --------------------------------------------------------
+
+
+def execute_delete(
+    src: Path,
+    *,
+    fs: FileSystem | None = None,
+    manifest_path: Path | None = None,
+    dry_run: bool = False,
+) -> DeleteResult:
+    """Permanently remove ``src``. Records a DELETED manifest entry.
+
+    Unlike :func:`execute_move`, this operation has NO reverse-protection:
+    once :meth:`fs.rmtree` runs, the data is gone. Callers must obtain
+    confirmation before invoking. The manifest entry is written *before*
+    the rmtree so that a partial failure mid-delete leaves a record the
+    user can use to investigate.
+
+    The precheck is identical to ``execute_move``'s (NEVER not allowed,
+    src must exist, be a directory, and not be a reparse point).
+    """
+    fs = fs or RealFileSystem()
+    _precheck_source(src, fs)
+
+    src_fp = fingerprint(src, fs=fs)
+
+    if dry_run:
+        return DeleteResult(
+            entry_id="dry-run",
+            deleted_path=src,
+            size_bytes=src_fp.total_bytes,
+            file_count=src_fp.file_count,
+            tree_hash=src_fp.tree_hash,
+            dry_run=True,
+        )
+
+    # Write the manifest record FIRST so that even a half-completed
+    # rmtree leaves breadcrumbs.
+    entry = ManifestEntry.new(
+        original_path=src,
+        new_path="",  # nothing to point at after a delete
+        size_bytes=src_fp.total_bytes,
+        file_count=src_fp.file_count,
+        tree_hash=src_fp.tree_hash,
+        status=EntryStatus.DELETED,
+    )
+    try:
+        append_entry(entry, manifest_path, fs=fs)
+    except ManifestError as e:
+        # Source still intact; just couldn't write the record.
+        raise MoveAbortedError(f"manifest write failed before delete: {e}") from e
+
+    # Now actually remove.
+    try:
+        fs.rmtree(src)
+    except (OSError, FsError) as e:
+        # Source may be partially deleted; mark BROKEN so doctor can flag.
+        _best_effort_update_status(entry.id, EntryStatus.BROKEN, manifest_path, fs)
+        raise MoveAbortedError(f"delete failed for {src}: {e}") from e
+
+    return DeleteResult(
+        entry_id=entry.id,
+        deleted_path=src,
+        size_bytes=src_fp.total_bytes,
+        file_count=src_fp.file_count,
+        tree_hash=src_fp.tree_hash,
+        dry_run=False,
     )
 
 

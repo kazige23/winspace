@@ -31,11 +31,20 @@ MANIFEST_VERSION = 1
 
 
 class EntryStatus(StrEnum):
-    """Lifecycle of a single move record."""
+    """Lifecycle of a single manifest record.
+
+    * ``ACTIVE`` — move completed, junction is in place
+    * ``ROLLED_BACK`` — a previous move was undone, data restored
+    * ``BROKEN`` — operation half-failed; doctor command can flag
+    * ``DELETED`` — ``winspace clean`` removed the directory outright;
+      record kept for forensics, but the data is gone and undo is not
+      available (there is no copy on disk to restore from)
+    """
 
     ACTIVE = "active"
     ROLLED_BACK = "rolled_back"
     BROKEN = "broken"
+    DELETED = "deleted"
 
 
 @dataclass
@@ -61,8 +70,13 @@ class ManifestEntry:
         size_bytes: int,
         file_count: int,
         tree_hash: str,
+        status: EntryStatus = EntryStatus.ACTIVE,
     ) -> ManifestEntry:
-        """Construct an entry with a fresh UUID and current UTC timestamp."""
+        """Construct an entry with a fresh UUID and current UTC timestamp.
+
+        ``status`` defaults to ACTIVE for move records; pass ``DELETED``
+        when recording a ``winspace clean`` operation.
+        """
         return cls(
             id=str(uuid.uuid4()),
             timestamp=datetime.now(UTC).isoformat(),
@@ -71,7 +85,7 @@ class ManifestEntry:
             size_bytes=size_bytes,
             file_count=file_count,
             tree_hash=tree_hash,
-            status=EntryStatus.ACTIVE,
+            status=status,
             cleanup_pending=False,
         )
 

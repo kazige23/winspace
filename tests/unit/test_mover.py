@@ -35,8 +35,10 @@ from winspace.core.fs import RealFileSystem
 from winspace.core.junction import is_junction
 from winspace.core.manifest import EntryStatus, load
 from winspace.core.mover import (
+    DeleteResult,
     MoveResult,
     UndoResult,
+    execute_delete,
     execute_move,
     execute_undo,
 )
@@ -508,6 +510,126 @@ def test_undo_verify_mismatch_marks_entry_broken(
     monkeypatch.setattr(RealFileSystem, "copytree", tamper)
     with pytest.raises(VerificationError):
         execute_undo(move.entry_id, manifest_path=manifest_path)
+
+    m = load(manifest_path)
+    [entry] = m.entries
+    assert entry.status == EntryStatus.BROKEN
+
+
+# --- execute_delete -------------------------------------------------------
+
+
+def test_delete_refuses_never_path(manifest_path: Path) -> None:
+    with pytest.raises(SafetyViolation):
+        execute_delete(Path("C:\\Windows\\System32"), manifest_path=manifest_path)
+
+
+def test_delete_refuses_missing_source(drives: tuple[Path, Path], manifest_path: Path) -> None:
+    drive_c, _ = drives
+    with pytest.raises(SafetyViolation, match="does not exist"):
+        execute_delete(drive_c / "ghost", manifest_path=manifest_path)
+
+
+def test_delete_refuses_source_that_is_a_file(
+    drives: tuple[Path, Path], manifest_path: Path
+) -> None:
+    drive_c, _ = drives
+    f = drive_c / "loose.txt"
+    f.write_text("hi")
+    with pytest.raises(SafetyViolation, match="not a directory"):
+        execute_delete(f, manifest_path=manifest_path)
+
+
+def test_delete_refuses_source_that_is_reparse_point(
+    drives: tuple[Path, Path],
+    manifest_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    drive_c, _ = drives
+    src = drive_c / "looks-junction"
+    src.mkdir()
+    monkeypatch.setattr(RealFileSystem, "is_reparse_point", lambda self, p: p == src)
+    with pytest.raises(SafetyViolation, match="reparse point"):
+        execute_delete(src, manifest_path=manifest_path)
+
+
+def test_delete_dry_run_does_not_mutate(source_tree: Path, manifest_path: Path) -> None:
+    result = execute_delete(source_tree, manifest_path=manifest_path, dry_run=True)
+    assert isinstance(result, DeleteResult)
+    assert result.dry_run is True
+    assert result.size_bytes > 0
+    assert result.entry_id == "dry-run"
+    # Source untouched, no manifest written.
+    assert source_tree.is_dir()
+    assert (source_tree / "package.json").read_text() == "{}"
+    assert not manifest_path.exists()
+
+
+def test_delete_happy_path_records_entry_and_removes_source(
+    source_tree: Path, manifest_path: Path
+) -> None:
+    pre = source_tree
+    result = execute_delete(pre, manifest_path=manifest_path)
+
+    assert isinstance(result, DeleteResult)
+    assert result.dry_run is False
+    assert result.size_bytes > 0
+    assert result.file_count > 0
+
+    # Source gone.
+    assert not pre.exists()
+
+    # Manifest has one DELETED entry.
+    from winspace.core.manifest import load
+
+    m = load(manifest_path)
+    [entry] = m.entries
+    assert entry.status == EntryStatus.DELETED
+    assert entry.new_path == ""
+    assert entry.size_bytes == result.size_bytes
+    assert entry.original_path == str(pre)
+
+
+def test_delete_manifest_write_failure_leaves_source_intact(
+    source_tree: Path,
+    manifest_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the manifest can't be written we MUST abort BEFORE rmtree —
+    losing data with no forensic record is the worst possible outcome.
+    """
+
+    def boom(*_a: object, **_kw: object) -> None:
+        raise ManifestError("disk full")
+
+    monkeypatch.setattr(mover_module, "append_entry", boom)
+
+    with pytest.raises(MoveAbortedError, match="manifest write failed before delete"):
+        execute_delete(source_tree, manifest_path=manifest_path)
+
+    # Source intact, no rmtree happened.
+    assert source_tree.is_dir()
+    assert (source_tree / "package.json").read_text() == "{}"
+
+
+def test_delete_rmtree_failure_marks_entry_broken(
+    source_tree: Path,
+    manifest_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If rmtree fails partway, the manifest entry is marked BROKEN so
+    the doctor command can flag the user.
+    """
+
+    def boom_rmtree(self: RealFileSystem, path: Path) -> None:
+        raise OSError("file in use")
+
+    monkeypatch.setattr(RealFileSystem, "rmtree", boom_rmtree)
+
+    with pytest.raises(MoveAbortedError, match="delete failed"):
+        execute_delete(source_tree, manifest_path=manifest_path)
+
+    from winspace.core.manifest import load
 
     m = load(manifest_path)
     [entry] = m.entries

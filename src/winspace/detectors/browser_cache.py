@@ -111,6 +111,7 @@ class BrowserCacheDetector(Detector):
             detector_name=self.name,
             prerequisite_note_zh="迁移前请先关闭对应浏览器",
             prerequisite_note_en="Close the browser before relocating",
+            deletable=True,
         )
 
 

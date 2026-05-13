@@ -41,7 +41,7 @@ from winspace.core.errors import (
 from winspace.core.fs import RealFileSystem
 from winspace.core.junction import is_junction
 from winspace.core.manifest import EntryStatus, ManifestEntry, load
-from winspace.core.mover import execute_move, execute_undo
+from winspace.core.mover import execute_delete, execute_move, execute_undo
 from winspace.core.scanner import directory_size
 from winspace.detectors.base import Candidate, RiskLevel, discover_detectors
 from winspace.version import __version__
@@ -368,6 +368,66 @@ def move(
         click.echo(f"  manifest id:   {result.entry_id}")
         if result.cleanup_pending:
             click.echo("  ⚠ cleanup_pending: 旧源目录残留, doctor 后续清理")
+
+
+@main.command()
+@click.argument("source", type=click.Path(path_type=Path))
+@click.option("--yes", "skip_confirm", is_flag=True, help="Skip the y/N prompt.")
+@click.option("--dry-run", is_flag=True, help="Show what would be deleted, don't actually delete.")
+def clean(source: Path, skip_confirm: bool, dry_run: bool) -> None:
+    """彻底删除目录 / Permanently delete <source>. NOT undoable.
+
+    Same NEVER guard as ``move``. RISKY paths (IM data dirs) are
+    refused outright — delete is too destructive for chat history,
+    even with ``--i-know-what-im-doing``. Use Windows Explorer if you
+    genuinely want to remove IM data.
+    """
+    if not source.exists():
+        click.echo(f"路径不存在 / source missing: {source}", err=True)
+        sys.exit(EXIT_BAD_ARGS)
+
+    never_hits, risky_hits = _gather_path_guards(source)
+    if never_hits:
+        for c in never_hits:
+            click.echo(
+                f"NEVER 路径拒绝删除 / never-rule blocks delete: {c.category} -> {c.path}",
+                err=True,
+            )
+        sys.exit(EXIT_BAD_ARGS)
+    if risky_hits:
+        for c in risky_hits:
+            click.echo(
+                f"RISKY 路径不允许 clean / risky path cannot be auto-deleted: "
+                f"{c.category} -> {c.path}",
+                err=True,
+            )
+        click.echo("如需删除此类目录,请关闭对应应用后用文件管理器手动操作", err=True)
+        sys.exit(EXIT_BAD_ARGS)
+
+    click.echo(f"源目录 / source:   {source}")
+    click.echo(f"操作 / op:         {'dry-run' if dry_run else 'DELETE (不可恢复 / NOT undoable)'}")
+
+    if (
+        not skip_confirm
+        and not dry_run
+        and not click.confirm("确认彻底删除? / Confirm permanent delete?", default=False)
+    ):
+        click.echo("已取消 / cancelled.")
+        sys.exit(EXIT_USER_CANCEL)
+
+    try:
+        result = execute_delete(source, dry_run=dry_run)
+    except BaseException as e:
+        sys.exit(_handle_error(e))
+
+    click.echo("")
+    click.echo("完成 / done:")
+    click.echo(f"  释放 / freed:    {format_size(result.size_bytes)}")
+    click.echo(f"  文件数:            {result.file_count}")
+    if dry_run:
+        click.echo("  (dry-run: 未删除)")
+    else:
+        click.echo(f"  manifest id:     {result.entry_id}")
 
 
 @main.command()

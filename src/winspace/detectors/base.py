@@ -59,6 +59,12 @@ class Candidate:
     size_bytes: int = 0  # populated by the CLI via scanner.directory_size
     prerequisite_note_zh: str = ""  # e.g. "请先关闭 Steam"
     prerequisite_note_en: str = ""
+    # Whether this candidate may be DELETED (not just moved). True for
+    # pure caches and regenerables (browser caches, package caches,
+    # node_modules); False for application data the user can't easily
+    # reconstruct (Steam libraries, Docker volumes, IM history). The
+    # GUI / CLI use this to gate the "delete" action per row.
+    deletable: bool = False
 
 
 class Detector(ABC):
