@@ -23,6 +23,28 @@ class CrossVolumeRenameError(FsError):
     """
 
 
+class InsufficientSpaceError(FsError):
+    """Destination volume does not have enough free space for the operation.
+
+    Maps to spec §3 CLI exit code 4.
+    """
+
+
+class MoveAbortedError(WinspaceError):
+    """Move failed and we successfully rolled the state back to a clean state.
+
+    Maps to spec §3 CLI exit code 5. The user can retry safely.
+    """
+
+
+class MoveRolledForwardError(WinspaceError):
+    """Move failed AND rollback to clean state failed.
+
+    Maps to spec §3 CLI exit code 6. Manual intervention required;
+    the manifest carries diagnostic information.
+    """
+
+
 class SafetyViolation(WinspaceError):
     """An operation was refused because it would touch a protected path."""
 
