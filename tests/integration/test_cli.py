@@ -42,17 +42,23 @@ def _make_tree(root: Path, layout: dict[str, Any]) -> None:
 def isolated_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path, Path]:
     """Build (home, drive_d, manifest_path) all under tmp_path.
 
-    Sets Path.home() and manifest's default path so any code that
-    relies on them is redirected into tmp_path.
+    Redirects every input the detectors read — ``Path.home``, the
+    manifest location, and the ``LOCALAPPDATA`` / ``APPDATA`` env vars
+    that browser_cache & package_caches consult — so tests never see
+    the developer's real machine.
     """
     home = tmp_path / "home"
     drive_d = tmp_path / "drive_d"
     manifest_path = tmp_path / "manifest.json"
     home.mkdir()
     drive_d.mkdir()
+    (home / "AppData" / "Local").mkdir(parents=True)
+    (home / "AppData" / "Roaming").mkdir(parents=True)
 
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
     monkeypatch.setattr("winspace.core.manifest.default_manifest_path", lambda: manifest_path)
+    monkeypatch.setenv("LOCALAPPDATA", str(home / "AppData" / "Local"))
+    monkeypatch.setenv("APPDATA", str(home / "AppData" / "Roaming"))
     return home, drive_d, manifest_path
 
 

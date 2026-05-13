@@ -13,11 +13,21 @@ are translated to exit codes by :func:`_handle_error`.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 from pathlib import Path
 
 import click
+
+# Force UTF-8 on Windows consoles where the default codepage (936 / GBK on
+# Chinese installs, 1252 elsewhere) would garble the bilingual output that
+# the CLI emits. Python 3.11+ exposes `reconfigure` on stdout/stderr.
+if sys.platform == "win32":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            with contextlib.suppress(OSError, AttributeError):
+                stream.reconfigure(encoding="utf-8", errors="replace")
 
 from winspace.core.errors import (
     InsufficientSpaceError,
