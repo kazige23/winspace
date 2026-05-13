@@ -11,6 +11,8 @@ venv/
 htmlcov/
 dist/
 build/
-*.spec
+# PyInstaller .spec files are checked in under packaging/, but builds
+# generate temporary copies at the repo root; ignore those.
+/winspace.spec
 .idea/
 .vscode/
