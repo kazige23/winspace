@@ -97,6 +97,12 @@ class MainWindow(QtWidgets.QMainWindow):
     # --- builders ---------------------------------------------------------
 
     def _build_drive_bar(self) -> QtWidgets.QHBoxLayout:
+        """Top bar: C-drive state + scan controls.
+
+        Deliberately does NOT host the target-drive selector — that
+        moved into the footer next to the Move button so users don't
+        misread the layout as "scan the D: drive".
+        """
         bar = QtWidgets.QHBoxLayout()
 
         self.c_drive_label = QtWidgets.QLabel()
@@ -105,18 +111,26 @@ class MainWindow(QtWidgets.QMainWindow):
 
         bar.addStretch(1)
 
-        bar.addWidget(QtWidgets.QLabel("目标盘 / target:"))
-        self.drive_combo = QtWidgets.QComboBox()
-        self._populate_drive_combo()
-        bar.addWidget(self.drive_combo)
-
         self.include_risky_cb = QtWidgets.QCheckBox("显示 RISKY / show RISKY")
         self.include_risky_cb.setToolTip("勾选后扫描会显示 IM 数据等高风险目录(默认隐藏)")
         bar.addWidget(self.include_risky_cb)
 
-        self.scan_button = QtWidgets.QPushButton("扫描 / Scan")
+        self.scan_button = QtWidgets.QPushButton("扫描 C 盘 / Scan C:")
+        self.scan_button.setToolTip(
+            "扫描 C 盘上可清理 / 可迁移的目录。\n"
+            "目标盘(在下方选择)只在执行『移动』时使用,跟扫描无关。"
+        )
         self.scan_button.clicked.connect(self._start_scan)
         bar.addWidget(self.scan_button)
+
+        # Create the drive_combo here so other code can reference it,
+        # but it gets parented into the footer in _build_footer().
+        self.drive_combo = QtWidgets.QComboBox()
+        self.drive_combo.setToolTip(
+            "选择把选中的目录搬到哪个盘 / where Move puts the data.\n"
+            "扫描不会用这个值。"
+        )
+        self._populate_drive_combo()
 
         return bar
 
@@ -157,9 +171,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         row.addSpacing(20)
 
-        self.move_button = QtWidgets.QPushButton("移动选中 → 目标盘 / Move selected")
+        # Target-drive selector lives RIGHT NEXT TO the Move button so the
+        # relationship is unambiguous: this dropdown is the destination
+        # for Move; nothing else uses it.
+        row.addWidget(QtWidgets.QLabel("移动到 / move to:"))
+        row.addWidget(self.drive_combo)
+
+        self.move_button = QtWidgets.QPushButton("移动选中 / Move selected")
         self.move_button.clicked.connect(self._start_move)
         row.addWidget(self.move_button)
+
+        row.addSpacing(20)
 
         self.delete_button = QtWidgets.QPushButton("删除选中 / Delete selected")
         self.delete_button.setStyleSheet("color: #b22;")
