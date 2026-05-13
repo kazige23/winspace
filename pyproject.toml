@@ -69,6 +69,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["B011"]  # allow `assert False` in tests if needed
+"src/winspace/core/fs.py" = ["PTH"]  # fs.py is the IO boundary; uses os.* on purpose
 
 # --- mypy -------------------------------------------------------------------
 
@@ -101,4 +102,8 @@ exclude_lines = [
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",
+    # Protocol method bodies are `...`; they document the interface and have
+    # no runtime body to test.
+    "^\\s*\\.\\.\\.\\s*$",
+    "class .*\\(Protocol\\):",
 ]
