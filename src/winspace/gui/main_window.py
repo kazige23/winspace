@@ -19,8 +19,12 @@ from PySide6 import QtCore, QtWidgets
 
 from winspace.core.junction import is_junction
 from winspace.gui.candidate_model import (
+    COL_CATEGORY,
     COL_CHECK,
+    COL_PATH,
     COL_REASON,
+    COL_RISK,
+    COL_SIZE,
     CandidateTableModel,
     make_rows,
 )
@@ -127,7 +131,11 @@ class MainWindow(QtWidgets.QMainWindow):
         view.horizontalHeader().setStretchLastSection(True)
         view.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.ResizeMode.Interactive)
         view.setColumnWidth(COL_CHECK, 36)
-        view.setColumnWidth(COL_REASON, 320)
+        view.setColumnWidth(COL_PATH, 420)
+        view.setColumnWidth(COL_SIZE, 90)
+        view.setColumnWidth(COL_RISK, 75)
+        view.setColumnWidth(COL_CATEGORY, 140)
+        view.setColumnWidth(COL_REASON, 260)
         self.table = view
         return view
 
