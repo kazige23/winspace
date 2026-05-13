@@ -137,12 +137,23 @@ def _handle_error(err: BaseException) -> int:
 def _enrich_candidates(
     candidates: list[Candidate], min_size: int, include_risky: bool
 ) -> list[tuple[Candidate, int]]:
-    """Compute sizes, apply filters, sort by size descending."""
+    """Compute sizes, apply filters, sort by size descending.
+
+    NEVER candidates (cloud-sync roots, IM data roots, ...) are never
+    surfaced themselves AND they cascade: any non-NEVER candidate whose
+    path lives under a NEVER root is dropped. This lets the cloud_sync
+    detector protect OneDrive subtrees from being suggested by, say,
+    the node_modules detector.
+    """
+    never_roots = [_resolve(c.path) for c in candidates if c.risk == RiskLevel.NEVER]
+
     enriched: list[tuple[Candidate, int]] = []
     for c in candidates:
         if c.risk == RiskLevel.NEVER:
             continue
         if c.risk == RiskLevel.RISKY and not include_risky:
+            continue
+        if _is_under_any(_resolve(c.path), never_roots):
             continue
         size = c.size_bytes or directory_size(c.path)
         if size < min_size:
@@ -150,6 +161,49 @@ def _enrich_candidates(
         enriched.append((c, size))
     enriched.sort(key=lambda pair: pair[1], reverse=True)
     return enriched
+
+
+def _resolve(path: Path) -> Path:
+    try:
+        return path.resolve(strict=False)
+    except (OSError, RuntimeError):
+        return path
+
+
+def _is_under_any(path: Path, roots: list[Path]) -> bool:
+    for root in roots:
+        try:
+            path.relative_to(root)
+            return True
+        except ValueError:
+            continue
+    return False
+
+
+def _gather_path_guards(source: Path) -> tuple[list[Candidate], list[Candidate]]:
+    """Return ``(never_hits, risky_hits)`` for ``source`` across every detector.
+
+    A "hit" is a candidate whose path equals the source or contains it as
+    a sub-path. Used by ``winspace move`` to enforce cloud-sync NEVER rules
+    and IM-data RISKY rules before invoking the mover.
+    """
+    fs = RealFileSystem()
+    resolved = _resolve(source)
+    never_hits: list[Candidate] = []
+    risky_hits: list[Candidate] = []
+    for det in discover_detectors():
+        try:
+            cands = det.find(fs)
+        except Exception:
+            continue
+        for c in cands:
+            c_resolved = _resolve(c.path)
+            if resolved == c_resolved or _is_under_any(resolved, [c_resolved]):
+                if c.risk == RiskLevel.NEVER:
+                    never_hits.append(c)
+                elif c.risk == RiskLevel.RISKY:
+                    risky_hits.append(c)
+    return never_hits, risky_hits
 
 
 # --- click commands ---------------------------------------------------------
@@ -256,10 +310,38 @@ def scan(
 )
 @click.option("--yes", "skip_confirm", is_flag=True, help="Skip the y/N prompt.")
 @click.option("--dry-run", is_flag=True, help="Show the plan without writing anything.")
-def move(source: Path, to_drive: Path, skip_confirm: bool, dry_run: bool) -> None:
+@click.option(
+    "--i-know-what-im-doing",
+    "i_know",
+    is_flag=True,
+    help="Override the RISKY guard (IM data dirs).",
+)
+def move(
+    source: Path,
+    to_drive: Path,
+    skip_confirm: bool,
+    dry_run: bool,
+    i_know: bool,
+) -> None:
     """移动目录到其他盘 / Relocate <source> to <--to> and leave a junction."""
     if not source.exists():
         click.echo(f"路径不存在 / source missing: {source}", err=True)
+        sys.exit(EXIT_BAD_ARGS)
+
+    # Cross-detector path guard: refuse if the source matches a NEVER /
+    # RISKY candidate from any detector (e.g. cloud_sync, im_data).
+    never_hits, risky_hits = _gather_path_guards(source)
+    if never_hits:
+        for c in never_hits:
+            click.echo(
+                f"NEVER 路径拒绝 / never-rule blocks move: {c.category} -> {c.path}",
+                err=True,
+            )
+        sys.exit(EXIT_BAD_ARGS)
+    if risky_hits and not i_know:
+        for c in risky_hits:
+            click.echo(f"RISKY 路径 / risky path: {c.category} -> {c.path}", err=True)
+        click.echo("如确认要移动,请加 --i-know-what-im-doing", err=True)
         sys.exit(EXIT_BAD_ARGS)
 
     click.echo(f"源目录 / source:      {source}")
