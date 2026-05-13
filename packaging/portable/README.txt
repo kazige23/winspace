@@ -10,11 +10,14 @@ winspace 是一个 Windows C 盘空间释放工具。它通过 NTFS junction
 无需安装。解压到任意位置,双击 winspace.exe 即可使用。
 
 【使用方法】
-1. 双击 winspace.exe                打开图形界面(默认入口)
-2. cmd 中运行 winspace.exe scan     CLI 模式扫描
-3. cmd 中运行 winspace.exe move     CLI 模式移动
-4. cmd 中运行 winspace.exe clean    CLI 模式删除
-5. cmd 中运行 winspace.exe undo     撤销最近的 move 操作
+1. 双击 winspace.exe                  打开图形界面(默认入口,无控制台)
+2. cmd 中运行 winspace-cli.exe scan   CLI 模式扫描
+3. cmd 中运行 winspace-cli.exe move   CLI 模式移动
+4. cmd 中运行 winspace-cli.exe clean  CLI 模式删除
+5. cmd 中运行 winspace-cli.exe undo   撤销最近的 move 操作
+
+(两个 exe 都在文件夹里。普通用户只用 winspace.exe,
+ 想跑命令行的开发者用 winspace-cli.exe。)
 
 【图形界面操作】
 1. 点击右上"扫描"按钮 → 程序遍历常见可清理目录
@@ -40,10 +43,9 @@ Q: 提示 Defender 拦截?
 A: 这是 PyInstaller 打包的 Python 程序常见的误报。把 winspace.exe
    加入排除项,或在 Defender 通知中点"允许"。
 
-Q: 为什么图形界面启动时闪了一下控制台?
-A: 单 exe 既要支持双击启动 GUI,又要支持 cmd 中跑 CLI,所以保留
-   了控制台。下个版本会拆成两个 exe(winspace.exe 无控制台 +
-   winspace-cli.exe)。
+Q: 双击 winspace.exe 时为什么没有黑色控制台框?
+A: 它使用 Windows 图形子系统启动,不开控制台。如果你想从 cmd 跑
+   命令行版本,用同一文件夹里的 winspace-cli.exe。
 
 Q: 数据真的不会丢吗?
 A: 移动操作有 9 步反向保护流程,代码里 290+ 单元/集成测试覆盖了

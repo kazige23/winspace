@@ -113,8 +113,15 @@ class CandidateTableModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.TextAlignmentRole and col == COL_SIZE:
             return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        if role == Qt.ItemDataRole.ToolTipRole and col == COL_REASON:
-            return f"{row.candidate.reason_zh}\n{row.candidate.reason_en}"
+        if role == Qt.ItemDataRole.ToolTipRole:
+            if col == COL_PATH:
+                # Full path is often too long for the column; tooltip
+                # exposes it on hover.
+                return str(row.candidate.path)
+            if col == COL_REASON:
+                return f"{row.candidate.reason_zh}\n{row.candidate.reason_en}"
+            if col == COL_CATEGORY:
+                return f"detector: {row.candidate.detector_name}\ncategory: {row.candidate.category}"
 
         return None
 

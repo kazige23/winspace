@@ -1,18 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec for the portable winspace.exe.
+"""PyInstaller spec for the portable winspace distribution.
 
-Builds a single console-attached exe that doubles as both the GUI
-launcher (when invoked with no arguments) and the CLI (when invoked
-with a subcommand). The brief console flash on double-click is the
-trade-off for a single binary; making the console disappear on
-double-click while keeping CLI usable would require a second exe.
+Produces TWO executables sharing one ``_internal/`` runtime:
+
+* ``winspace.exe``      — Windows GUI subsystem (no console window).
+                          What end users double-click. Stdout/stderr
+                          are detached.
+* ``winspace-cli.exe``  — Windows console subsystem. Same entry point,
+                          but `winspace-cli.exe scan` (from cmd) shows
+                          its output normally.
+
+Both wrap the same Python entry (``winspace.__main__``); the CLI/GUI
+dispatch happens at runtime inside ``winspace.cli.main``: no
+sub-command -> launch GUI, else -> run that CLI sub-command.
 
 Run from the repo root:
 
     python -m PyInstaller packaging/winspace.spec --noconfirm --clean
 
-Output: ``dist/winspace/winspace.exe`` (one-folder distribution
-including PySide6 plugins and runtime).
+Output: ``dist/winspace/`` with both binaries plus ``_internal/``.
 """
 
 from pathlib import Path
@@ -64,17 +70,11 @@ a = Analysis(
 )
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name="winspace",
+_common_exe_kwargs = dict(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,  # keep CLI usable; brief console flash on double-click is OK for v1
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -82,8 +82,33 @@ exe = EXE(
     entitlements_file=None,
     # icon=str(REPO / "packaging" / "winspace.ico"),  # add when an icon exists
 )
+
+# GUI launcher — windowed subsystem, no console window on double-click.
+exe_gui = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="winspace",
+    console=False,
+    **_common_exe_kwargs,
+)
+
+# CLI launcher — console subsystem so `winspace-cli.exe scan` from cmd
+# shows its output. Same code; just a different exe header.
+exe_cli = EXE(
+    pyz,
+    a.scripts,
+    [],
+    exclude_binaries=True,
+    name="winspace-cli",
+    console=True,
+    **_common_exe_kwargs,
+)
+
 coll = COLLECT(
-    exe,
+    exe_gui,
+    exe_cli,
     a.binaries,
     a.zipfiles,
     a.datas,
