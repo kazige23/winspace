@@ -174,7 +174,7 @@ def build_cover() -> Path:
     draw.rectangle((0, 0, W, band_h), fill=COL_ACCENT)
     draw.text(
         (24, 4),
-        "闲鱼专享 · 远程上门技术服务",
+        "绿色版 · 双击即用 · Win10/11 全支持",
         font=font(22, bold=True),
         fill=COL_WHITE,
     )
@@ -182,7 +182,7 @@ def build_cover() -> Path:
     # main title — biggest text on the canvas
     draw_centered_text(
         draw,
-        "远程C盘清理",
+        "C盘深度清理",
         x=0,
         y=70,
         width=W,
@@ -191,7 +191,7 @@ def build_cover() -> Path:
     )
     draw_centered_text(
         draw,
-        "一对一陪同 · 半小时搞定",
+        "智能扫描 · 一键搬家 · 可还原",
         x=0,
         y=190,
         width=W,
@@ -243,7 +243,7 @@ def build_cover() -> Path:
     pills = [
         ("数据零损失", COL_GREEN),
         ("可一键还原", COL_ACCENT),
-        ("全程录屏", COL_TEXT),
+        ("绿色无需装", COL_TEXT),
     ]
     pill_w = 200
     pill_h = 56
@@ -340,7 +340,7 @@ def build_image_pain() -> Path:
     # bottom hook
     draw_centered_text(
         draw,
-        "→ 找专业的人远程帮你看,问题搞定",
+        "→ 一款专业工具,5 分钟自己搞定",
         x=0,
         y=540,
         width=W,
@@ -423,45 +423,89 @@ def build_image_tool() -> Path:
 
 
 def build_image_process() -> Path:
+    """Replaces the old "service flow" image with a "what the software
+    actually cleans" layout — six categories in a 2x3 grid.
+    """
     W, H = 800, 600
     img = Image.new("RGB", (W, H), COL_BG)
     draw = ImageDraw.Draw(img)
 
     draw_centered_text(
         draw,
-        "5 步流程 · 30 分钟搞定",
+        "软件清理模块 · 一键全覆盖",
         x=0,
         y=30,
         width=W,
-        f=font(40, bold=True),
+        f=font(38, bold=True),
         fill=COL_ACCENT,
     )
 
-    steps = [
-        ("1", "拍下后", "加微信 / QQ 联系"),
-        ("2", "远程连接", "向日葵 / ToDesk 连入你的电脑"),
-        ("3", "扫描分析", "运行专业工具,识别可清理目录"),
-        ("4", "陪同确认", "告诉你每一项是什么,你点头我才动"),
-        ("5", "确认完成", "通常释放 10–30 GB,你看着才收货"),
+    # Each module: (badge_text, badge_color, title, subtitle, hint)
+    modules = [
+        ("WEB", COL_ACCENT, "浏览器缓存", "Chrome / Edge / Firefox", "多账户全部覆盖"),
+        ("PKG", (96, 88, 230), "包管理器缓存", "pip / npm / yarn / cargo", "开发者必备"),
+        ("GAM", (245, 130, 32), "游戏库扫描", "Steam / Epic / 战网", "GB 级真大头"),
+        ("NPM", COL_GREEN, "node_modules", "前端项目残留", "可搬家可清理"),
+        ("TMP", (140, 140, 140), "临时文件", "TEMP / 日志 / 旧文件", "智能挑选 >30 天"),
+        ("IDE", (220, 53, 96), "IDE 缓存", "VS Code / JetBrains", "几个 GB 立省"),
     ]
-    y = 110
-    num_f = font(36, bold=True)
-    title_f = font(26, bold=True)
-    desc_f = font(22)
-    for num, title, desc in steps:
-        # circle with number
-        cx, cy, r = 60, y + 28, 28
-        draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=COL_ACCENT)
-        bb = draw.textbbox((0, 0), num, font=num_f)
-        nw = bb[2] - bb[0]
-        nh = bb[3] - bb[1]
-        draw.text(
-            (cx - nw // 2, cy - nh // 2 - 6), num, font=num_f, fill=COL_WHITE
+
+    cell_w = 360
+    cell_h = 130
+    spacing_x = 16
+    spacing_y = 16
+    cols = 2
+    grid_w = cols * cell_w + (cols - 1) * spacing_x
+    start_x = (W - grid_w) // 2
+    start_y = 110
+
+    badge_f = font(20, bold=True)
+    title_f = font(22, bold=True)
+    desc_f = font(17)
+    hint_f = font(15)
+
+    for i, (badge, badge_color, title, desc, hint) in enumerate(modules):
+        col = i % cols
+        row = i // cols
+        x = start_x + col * (cell_w + spacing_x)
+        y = start_y + row * (cell_h + spacing_y)
+        # card background
+        draw.rounded_rectangle(
+            (x, y, x + cell_w, y + cell_h),
+            radius=12,
+            fill=COL_WHITE,
+            outline=COL_ACCENT,
+            width=2,
         )
-        # text
-        draw.text((120, y + 8), title, font=title_f, fill=COL_TEXT)
-        draw.text((120, y + 44), desc, font=desc_f, fill=COL_SUB)
-        y += 90
+        # colored badge (left side, vertical-centered)
+        bx, by, bw, bh = x + 16, y + 38, 58, 54
+        draw.rounded_rectangle((bx, by, bx + bw, by + bh), radius=8, fill=badge_color)
+        # badge text centered in the box
+        tb = draw.textbbox((0, 0), badge, font=badge_f)
+        tw = tb[2] - tb[0]
+        th = tb[3] - tb[1]
+        draw.text(
+            (bx + (bw - tw) // 2, by + (bh - th) // 2 - 4),
+            badge,
+            font=badge_f,
+            fill=COL_WHITE,
+        )
+        # text (right side)
+        draw.text((x + 90, y + 20), title, font=title_f, fill=COL_TEXT)
+        draw.text((x + 90, y + 56), desc, font=desc_f, fill=COL_SUB)
+        draw.text((x + 90, y + 86), "· " + hint, font=hint_f, fill=COL_GREEN)
+
+    # bottom strip
+    draw.rectangle((0, H - 50, W, H), fill=COL_GREEN)
+    draw_centered_text(
+        draw,
+        "智能识别 · 一键处理 · 移动或删除你来定",
+        x=0,
+        y=H - 40,
+        width=W,
+        f=font(22, bold=True),
+        fill=COL_WHITE,
+    )
 
     out = OUT / "image-3-process.png"
     img.save(out, "PNG", optimize=True)
@@ -487,10 +531,10 @@ def build_image_trust() -> Path:
     )
 
     cards = [
-        ("数据零损失", "工具有 9 步反向保护,每次操作前先复制+校验,你看着确认才执行 rmtree"),
-        ("可一键还原", "30 天内随时撤销,我们记录所有操作日志,任意一步都能回退"),
-        ("全程录屏", "整个远程过程录屏,你可以提前要,出问题就是证据"),
-        ("不删用户数据", "云盘 / 微信 / QQ / iCloud 等用户数据所在目录全部硬黑名单,工具自动拒绝触碰"),
+        ("数据零损失", "操作前每一项告知用途,删除前需二次确认,绝不静默"),
+        ("可一键还原", "30 天内任意操作可撤销,自动记录日志,后悔随时回退"),
+        ("不删用户数据", "云盘/微信/QQ/iCloud 等数据目录硬黑名单,工具拒绝触碰"),
+        ("绿色无残留", "无需安装,不写注册表,不开机自启,不联网,删完啥都没留"),
     ]
     y = 130
     title_f = font(28, bold=True)
@@ -512,7 +556,7 @@ def build_image_trust() -> Path:
     draw.rectangle((0, H - 60, W, H), fill=COL_ACCENT)
     draw_centered_text(
         draw,
-        "拍下后 24 小时内联系 · 不满意全额退",
+        "300+ 测试场景验证 · 不满意 24h 内全额退",
         x=0,
         y=H - 48,
         width=W,
